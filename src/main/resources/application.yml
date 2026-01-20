@@ -1,0 +1,22 @@
+server:
+  port: 8078
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:forgotyet;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: update
+  h2:
+    console:
+      enabled: true
+
+# 新增 LLM 配置
+llm:
+  api-key: sk-2d5de612ca03465bb4cf588ead945eeb
+  base-url: https://api.deepseek.com/v1/chat/completions
+  model: deepseek-chat
