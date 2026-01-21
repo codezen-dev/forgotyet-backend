@@ -14,6 +14,21 @@ spring:
   h2:
     console:
       enabled: true
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: forgotyet.official@gmail.com
+    password: tkzepbklymbzxppi
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
 
 # 新增 LLM 配置
 llm:

@@ -21,7 +21,7 @@ public class EventController {
         }
 
         // 调用 Service
-        boolean success = eventService.createEvent(request.getContent(), "user@default.com"); // MVP 暂时写死用户
+        boolean success = eventService.createEvent(request.getContent(), "lizhenweijie@gmail.com");
 
         if (success) {
             return R.success("已记住。"); // 极其克制的返回

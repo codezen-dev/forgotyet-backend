@@ -81,4 +81,44 @@ public class LlmService {
             return fallback;
         }
     }
+
+    /**
+     * 根据用户原话，生成安抚邮件内容
+     */
+    public String generateEmailContent(String rawInput) {
+        // 1. 获取安抚 Prompt (从数据库热加载)
+        String systemPromptTemplate = configService.getPrompt("prompt.soother.system", "");
+        // 这里暂时没有变量需要替换，如果有 {raw_input} 可以在 prompt 里处理，或者直接拼在 user message 里
+
+        // 2. 构造请求
+        JSONObject requestBody = new JSONObject();
+        requestBody.set("model", modelName);
+        // 注意：这次我们不需要 JSON 格式，要纯文本，所以不要加 response_format: json_object
+
+        JSONArray messages = new JSONArray();
+        messages.add(new JSONObject().set("role", "system").set("content", systemPromptTemplate));
+        // 我们把用户的原话发给 AI，让它基于此生成回复
+        messages.add(new JSONObject().set("role", "user").set("content", "用户的原话是：" + rawInput + "。请生成一段简短的安抚提醒。"));
+        requestBody.set("messages", messages);
+
+        try {
+            HttpResponse response = HttpRequest.post(baseUrl)
+                    .header("Authorization", "Bearer " + apiKey)
+                    .header("Content-Type", "application/json")
+                    .body(requestBody.toString())
+                    .timeout(30000)
+                    .execute();
+
+            JSONObject jsonResponse = JSONUtil.parseObj(response.body());
+            // 提取内容
+            return jsonResponse.getJSONArray("choices")
+                    .getJSONObject(0)
+                    .getJSONObject("message")
+                    .getStr("content");
+
+        } catch (Exception e) {
+            log.error("生成邮件内容失败", e);
+            return "（系统自动提醒）您之前提到的事情快到时间了，别忘了：" + rawInput;
+        }
+    }
 }
