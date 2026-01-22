@@ -24,7 +24,7 @@ public class EventController {
         boolean success = eventService.createEvent(request.getContent(), "lizhenweijie@gmail.com");
 
         if (success) {
-            return R.success("已记住。"); // 极其克制的返回
+            return R.success("已记住。");
         } else {
             return R.error("没太听懂，这好像不是一个未来的计划？");
         }
