@@ -16,7 +16,6 @@ public class AdminConfigController {
 
     /**
      * 手动刷新缓存
-     * 当你在数据库修改了 Prompt 后，调用这个接口，不用重启服务就能生效
      */
     @PostMapping("/refresh")
     public R<String> refresh() {
