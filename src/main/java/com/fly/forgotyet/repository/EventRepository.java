@@ -12,4 +12,6 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
     // 核心查询：找那些 "状态是沉默" 且 "触发时间已到" 的事件
     List<Event> findByStatusAndTriggerTimeBefore(String status, LocalDateTime now);
+
+    List<Event> findByStatusAndTriggerTimeAfter(String status, LocalDateTime now);
 }

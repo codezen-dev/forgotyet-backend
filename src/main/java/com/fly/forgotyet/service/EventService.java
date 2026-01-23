@@ -18,6 +18,8 @@ public class EventService {
     private final LlmService llmService;
     private final EventRepository eventRepository;
 
+    private final EventSchedulerService eventSchedulerService;
+
     /**
      * 接收用户输入，保存为未来的事件
      */
@@ -51,6 +53,8 @@ public class EventService {
         // 5. 落库
         eventRepository.save(event);
         log.info("新事件已存储: ID={}, 触发时间={}", event.getId(), event.getTriggerTime());
+
+        eventSchedulerService.scheduleEvent(event);
 
         return true;
     }

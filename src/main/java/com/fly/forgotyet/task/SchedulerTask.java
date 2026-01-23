@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Slf4j
-@Component
+//@Component
 @RequiredArgsConstructor
 public class SchedulerTask {
 
@@ -22,7 +22,7 @@ public class SchedulerTask {
     private final EmailService emailService;
 
     // 每分钟执行一次 (MVP 阶段频率高一点方便测试，生产环境可以 10 分钟或 1 小时)
-    @Scheduled(cron = "0 */1 * * * ?")
+//    @Scheduled(cron = "0 */1 * * * ?")
     public void scanEvents() {
         log.debug(">>> 心跳检测: 正在扫描到期事件...");
 
