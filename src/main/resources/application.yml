@@ -2,6 +2,11 @@ server:
   port: 8078
 
 spring:
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 2MB     # 单个音频最大2MB（对应压缩后的60秒）
+      max-request-size: 2MB  # 总请求也不允许超过2MB
   datasource:
     url: jdbc:h2:file:./data/forgotyet;DB_CLOSE_DELAY=-1;AUTO_SERVER=TRUE
     driver-class-name: org.h2.Driver
@@ -42,3 +47,8 @@ llm:
     url: https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
     api-key: ${ALIYUN_KEY}
     model-name: qwen-plus
+voice:
+  # 阿里云通义听悟 (完全兼容 OpenAI 协议)
+  api-url: https://dashscope.aliyuncs.com/compatible-mode/v1/audio/transcriptions
+  api-key: ${ALIYUN_KEY} # 复用你之前的阿里大模型 Key 即可
+  model: whisper-large-v3
