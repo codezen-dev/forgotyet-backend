@@ -19,106 +19,117 @@ public class LlmService {
 
     private final ConfigService configService;
 
-    @Value("${llm.api-key}")
-    private String apiKey;
+    // 🚀 主模型配置 (如 DeepSeek)
+    @Value("${llm.primary.api-key}")
+    private String primaryApiKey;
+    @Value("${llm.primary.base-url}")
+    private String primaryBaseUrl;
+    @Value("${llm.primary.model}")
+    private String primaryModelName;
 
-    @Value("${llm.base-url}")
-    private String baseUrl;
-
-    @Value("${llm.model}")
-    private String modelName;
+    // 🚀 备用模型配置 (如 通义千问/Kimi)
+    @Value("${llm.backup.api-key}")
+    private String backupApiKey;
+    @Value("${llm.backup.base-url}")
+    private String backupBaseUrl;
+    @Value("${llm.backup.model}")
+    private String backupModelName;
 
     /**
-     * 解析用户输入 -> 结构化数据
+     * 解析用户输入 -> 结构化数据 (高可用版)
      */
     public EventParseResult parseInput(String userInput) {
-        // 1. 获取当前时间
         String nowStr = DateUtil.now();
-
-        // 2. 获取 Prompt 模板 (从数据库热加载)
         String systemPromptTemplate = configService.getPrompt("prompt.parser.system", "");
-        // 替换变量
         String systemPrompt = systemPromptTemplate.replace("{currentTime}", nowStr);
 
-        // 3. 构造请求体 (OpenAI 兼容格式)
-        JSONObject requestBody = new JSONObject();
-        requestBody.set("model", modelName);
-        requestBody.set("response_format", new JSONObject().set("type", "json_object")); // 强制 JSON 模式
-
-        JSONArray messages = new JSONArray();
-        messages.add(new JSONObject().set("role", "system").set("content", systemPrompt));
-        messages.add(new JSONObject().set("role", "user").set("content", userInput));
-        requestBody.set("messages", messages);
-
         try {
-            // 4. 发起请求
-            log.info(">>> 正在请求 LLM 解析: {}", userInput);
-            HttpResponse response = HttpRequest.post(baseUrl)
-                    .header("Authorization", "Bearer " + apiKey)
-                    .header("Content-Type", "application/json")
-                    .body(requestBody.toString())
-                    .timeout(20000) // 20秒超时
-                    .execute();
-
-            String body = response.body();
-            log.debug("LLM Response: {}", body);
-
-            // 5. 解析响应
-            JSONObject jsonResponse = JSONUtil.parseObj(body);
-            String content = jsonResponse.getJSONArray("choices")
-                    .getJSONObject(0)
-                    .getJSONObject("message")
-                    .getStr("content");
-
-            // 6. 转为对象
-            return JSONUtil.toBean(content, EventParseResult.class);
-
+            log.info(">>> [主模型] 正在解析: {}", userInput);
+            return callParserApi(primaryBaseUrl, primaryApiKey, primaryModelName, systemPrompt, userInput);
         } catch (Exception e) {
-            log.error("调用 LLM 失败", e);
-            // 兜底：返回无效
-            EventParseResult fallback = new EventParseResult();
-            fallback.setValid(false);
-            return fallback;
+            log.warn("⚠️ [主模型] 解析超时或崩溃，触发熔断，秒级切换至备用模型... 错误: {}", e.getMessage());
+            try {
+                return callParserApi(backupBaseUrl, backupApiKey, backupModelName, systemPrompt, userInput);
+            } catch (Exception backupEx) {
+                log.error("❌ [备用模型] 也已崩溃", backupEx);
+                // 终极兜底：返回无效，不污染数据库
+                EventParseResult fallback = new EventParseResult();
+                fallback.setValid(false);
+                return fallback;
+            }
         }
     }
 
     /**
-     * 根据用户原话，生成安抚邮件内容
+     * 根据用户原话，生成安抚邮件内容 (高可用版)
      */
     public String generateEmailContent(String rawInput) {
-        // 1. 获取安抚 Prompt (从数据库热加载)
         String systemPromptTemplate = configService.getPrompt("prompt.soother.system", "");
-        // 这里暂时没有变量需要替换，如果有 {raw_input} 可以在 prompt 里处理，或者直接拼在 user message 里
 
-        // 2. 构造请求
+        try {
+            log.info(">>> [主模型] 正在生成安抚文案...");
+            return callSootherApi(primaryBaseUrl, primaryApiKey, primaryModelName, systemPromptTemplate, rawInput);
+        } catch (Exception e) {
+            log.warn("⚠️ [主模型] 文案生成失败，切换至备用模型... 错误: {}", e.getMessage());
+            try {
+                return callSootherApi(backupBaseUrl, backupApiKey, backupModelName, systemPromptTemplate, rawInput);
+            } catch (Exception backupEx) {
+                log.error("❌ [备用模型] 也已崩溃", backupEx);
+                // 终极兜底：返回标准模板，绝不阻断邮件发送
+                return "（系统自动提醒）您之前提到的事情快到时间了，别忘了：" + rawInput;
+            }
+        }
+    }
+
+    // ================== 底层调用抽离 ==================
+
+    private EventParseResult callParserApi(String url, String apiKey, String model, String sysPrompt, String userInput) {
         JSONObject requestBody = new JSONObject();
-        requestBody.set("model", modelName);
-        // 注意：这次我们不需要 JSON 格式，要纯文本，所以不要加 response_format: json_object
+        requestBody.set("model", model);
+        requestBody.set("response_format", new JSONObject().set("type", "json_object"));
 
         JSONArray messages = new JSONArray();
-        messages.add(new JSONObject().set("role", "system").set("content", systemPromptTemplate));
-        // 我们把用户的原话发给 AI，让它基于此生成回复
+        messages.add(new JSONObject().set("role", "system").set("content", sysPrompt));
+        messages.add(new JSONObject().set("role", "user").set("content", userInput));
+        requestBody.set("messages", messages);
+
+        HttpResponse response = HttpRequest.post(url)
+                .header("Authorization", "Bearer " + apiKey)
+                .header("Content-Type", "application/json")
+                .body(requestBody.toString())
+                .timeout(8000) // 🚀 硬超时改为 8 秒，防止卡死
+                .execute();
+
+        String body = response.body();
+        JSONObject jsonResponse = JSONUtil.parseObj(body);
+        String content = jsonResponse.getJSONArray("choices")
+                .getJSONObject(0)
+                .getJSONObject("message")
+                .getStr("content");
+
+        return JSONUtil.toBean(content, EventParseResult.class);
+    }
+
+    private String callSootherApi(String url, String apiKey, String model, String sysPrompt, String rawInput) {
+        JSONObject requestBody = new JSONObject();
+        requestBody.set("model", model);
+
+        JSONArray messages = new JSONArray();
+        messages.add(new JSONObject().set("role", "system").set("content", sysPrompt));
         messages.add(new JSONObject().set("role", "user").set("content", "用户的原话是：" + rawInput + "。请生成一段简短的安抚提醒。"));
         requestBody.set("messages", messages);
 
-        try {
-            HttpResponse response = HttpRequest.post(baseUrl)
-                    .header("Authorization", "Bearer " + apiKey)
-                    .header("Content-Type", "application/json")
-                    .body(requestBody.toString())
-                    .timeout(30000)
-                    .execute();
+        HttpResponse response = HttpRequest.post(url)
+                .header("Authorization", "Bearer " + apiKey)
+                .header("Content-Type", "application/json")
+                .body(requestBody.toString())
+                .timeout(8000) // 🚀 硬超时 8 秒
+                .execute();
 
-            JSONObject jsonResponse = JSONUtil.parseObj(response.body());
-            // 提取内容
-            return jsonResponse.getJSONArray("choices")
-                    .getJSONObject(0)
-                    .getJSONObject("message")
-                    .getStr("content");
-
-        } catch (Exception e) {
-            log.error("生成邮件内容失败", e);
-            return "（系统自动提醒）您之前提到的事情快到时间了，别忘了：" + rawInput;
-        }
+        JSONObject jsonResponse = JSONUtil.parseObj(response.body());
+        return jsonResponse.getJSONArray("choices")
+                .getJSONObject(0)
+                .getJSONObject("message")
+                .getStr("content");
     }
 }

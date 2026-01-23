@@ -2,6 +2,7 @@ package com.fly.forgotyet.controller;
 
 import com.fly.forgotyet.common.R;
 import com.fly.forgotyet.service.EventService;
+import com.sun.jdi.request.EventRequest;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -21,13 +22,10 @@ public class EventController {
         }
 
         // 调用 Service
-        boolean success = eventService.createEvent(request.getContent(), "lizhenweijie@gmail.com");
+        eventService.createEvent(request.getContent(), "lizhenweijie@gmail.com");
 
-        if (success) {
-            return R.success("已记住。");
-        } else {
-            return R.error("没太听懂，这好像不是一个未来的计划？");
-        }
+        return R.success("已记住。");
+
     }
 
     // 内部 DTO

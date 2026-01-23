@@ -30,8 +30,15 @@ spring:
           timeout: 5000
           writetimeout: 5000
 
-# 新增 LLM 配置
+# LLM 多模型高可用配置
 llm:
-  api-key: sk-2d5de612ca03465bb4cf588ead945eeb
-  base-url: https://api.deepseek.com/v1/chat/completions
-  model: deepseek-chat
+  # 主模型：DeepSeek (聪明，便宜，但最近容易被挤爆)
+  primary:
+    url: https://api.deepseek.com/chat/completions
+    api-key: sk-2d5de612ca03465bb4cf588ead945eeb
+    model-name: deepseek-chat
+  # 备模型：阿里云通义千问 (OpenAI兼容接口，极稳)
+  backup:
+    url: https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
+    api-key: sk-003967f60c6342499aeb09c0cb8573a9
+    model-name: qwen-plus
