@@ -18,7 +18,7 @@ spring:
     host: smtp.gmail.com
     port: 587
     username: forgotyet.official@gmail.com
-    password: tkzepbklymbzxppi
+    password: ${MAIL_PASSWORD}
     properties:
       mail:
         smtp:
@@ -35,10 +35,10 @@ llm:
   # 主模型：DeepSeek (聪明，便宜，但最近容易被挤爆)
   primary:
     url: https://api.deepseek.com/chat/completions
-    api-key: sk-2d5de612ca03465bb4cf588ead945eeb
+    api-key: ${DEEPSEEK_KEY}
     model-name: deepseek-chat
   # 备模型：阿里云通义千问 (OpenAI兼容接口，极稳)
   backup:
     url: https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
-    api-key: sk-003967f60c6342499aeb09c0cb8573a9
+    api-key: ${ALIYUN_KEY}
     model-name: qwen-plus
