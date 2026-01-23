@@ -22,18 +22,20 @@ spring:
     console:
       enabled: true
   mail:
-    host: smtp.gmail.com
-    port: 587
-    username: forgotyet.official@gmail.com
+    host: smtp.163.com
+    port: 465
+    username: 13241888142@163.com
+    #forgotyet.official@gmail.com
     password: ${MAIL_PASSWORD}
+    default-encoding: UTF-8
     properties:
       mail:
         smtp:
           auth: true
-          starttls:
-            enable: true
+          ssl:
+            enable: true # 163 必须开启 SSL
             required: true
-          connectiontimeout: 5000
+          connectiontimeout: 5000 # 国内极其稳定，5秒足够了
           timeout: 5000
           writetimeout: 5000
 
@@ -41,14 +43,14 @@ spring:
 llm:
   # 主模型：DeepSeek (聪明，便宜，但最近容易被挤爆)
   primary:
-    url: https://api.deepseek.com/chat/completions
+    base-url: https://api.deepseek.com/chat/completions
     api-key: ${DEEPSEEK_KEY}
-    model-name: deepseek-chat
+    model: deepseek-chat
   # 备模型：阿里云通义千问 (OpenAI兼容接口，极稳)
   backup:
-    url: https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
+    base-url: https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
     api-key: ${ALIYUN_KEY}
-    model-name: qwen-plus
+    model: qwen-plus
 voice:
   # 阿里云通义听悟 (完全兼容 OpenAI 协议)
   api-url: https://dashscope.aliyuncs.com/compatible-mode/v1/audio/transcriptions

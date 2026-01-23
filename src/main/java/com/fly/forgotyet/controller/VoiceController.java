@@ -16,7 +16,7 @@ import javax.servlet.http.HttpServletRequest;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/voice")
+@RequestMapping("/fy-api/api/voice")
 @RequiredArgsConstructor
 public class VoiceController {
 

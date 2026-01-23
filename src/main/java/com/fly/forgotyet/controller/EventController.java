@@ -8,7 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/fy-api/events")
+@RequestMapping("/fy-api/api/events")
 @RequiredArgsConstructor
 public class EventController {
 
