@@ -47,7 +47,7 @@ public class EventService {
         // 4. 时间计算魔法
         LocalDateTime eventTime = LocalDateTimeUtil.parse(parseResult.getEventTime(), "yyyy-MM-dd HH:mm:ss");
         event.setEventTime(eventTime);
-        event.setTriggerTime(eventTime.minusDays(1)); // MVP 兜底：前一天触发
+        event.setTriggerTime(eventTime);
 
         // 5. 落库
         eventRepository.save(event);

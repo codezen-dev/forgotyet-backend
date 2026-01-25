@@ -121,7 +121,13 @@ public class LlmService {
                 .getJSONObject("message")
                 .getStr("content");
 
-        return JSONUtil.toBean(content, EventParseResult.class);
+        // 🚀 1. 新增：洗掉大模型可能附带的 Markdown 标签
+        String cleanJson = content.replace("```json", "").replace("```", "").trim();
+
+        log.info(">>> [大模型原始返回]: {}", cleanJson);
+
+        // 🚀 2. 核心修改：用全路径调用咱们自己写的 JsonUtil，彻底解决时区问题！
+        return com.fly.forgotyet.common.JsonUtil.toBean(cleanJson, EventParseResult.class);
     }
 
     private String callSootherApi(String url, String apiKey, String model, String sysPrompt, String rawInput) {
