@@ -52,7 +52,9 @@ llm:
     api-key: ${ALIYUN_KEY}
     model: qwen-plus
 voice:
-  # 阿里云通义听悟 (完全兼容 OpenAI 协议)
-  api-url: https://dashscope.aliyuncs.com/compatible-mode/v1/audio/transcriptions
-  api-key: ${ALIYUN_KEY} # 复用你之前的阿里大模型 Key 即可
-  model: whisper-large-v3
+  # 🚀 换成硅基流动的标准 OpenAI 接口 (国内极速直连)
+  api-url: https://api.siliconflow.cn/v1/audio/transcriptions
+  api-key: sk-你的硅基流动新Key
+  # 🚀 可以用 whisper，也可以用阿里开源的最强中文语音模型 SenseVoice
+  model: FunAudioLLM/SenseVoiceSmall
+  # (或者填 model: openai/whisper-large-v3)
