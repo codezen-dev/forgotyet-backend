@@ -38,13 +38,28 @@ public class LlmService {
     /**
      * 解析用户输入 -> 结构化数据 (高可用版)
      */
+    /**
+     * 解析用户输入 -> 结构化数据 (高可用版)
+     */
     public EventParseResult parseInput(String userInput) {
+        log.info(">>> [主模型] 正在解析: {}", userInput);
+
+        // 🚀 1. 获取精确到秒的当前时间
         String nowStr = DateUtil.now();
+
+        // 🚀 2. 获取今天是星期几 (中文，例如：星期日)
+        String dayOfWeek = cn.hutool.core.date.DateUtil.dayOfWeekEnum(new java.util.Date()).toChinese("星期");
+
+        // 🚀 3. 组合出最强的防穿越时间锚点
+        String absoluteTimeContext = nowStr + " " + dayOfWeek;
+
         String systemPromptTemplate = configService.getPrompt("prompt.parser.system", "");
-        String systemPrompt = systemPromptTemplate.replace("{currentTime}", nowStr);
+
+        // 🚀 4. 在原有的 Prompt 基础上，强行追加“严禁穿越”规则
+        String systemPrompt = systemPromptTemplate.replace("{currentTime}", absoluteTimeContext)
+                + "\n\n【系统最高指令：当前时间是 " + absoluteTimeContext + "，你生成的 trigger_time 绝不能早于这个时间！如果是5分钟后，必须在这个时间基础上加5分钟！】";
 
         try {
-            log.info(">>> [主模型] 正在解析: {}", userInput);
             return callParserApi(primaryBaseUrl, primaryApiKey, primaryModelName, systemPrompt, userInput);
         } catch (Exception e) {
             log.warn("⚠️ [主模型] 解析超时或崩溃，触发熔断，秒级切换至备用模型... 错误: {}", e.getMessage());
@@ -52,7 +67,6 @@ public class LlmService {
                 return callParserApi(backupBaseUrl, backupApiKey, backupModelName, systemPrompt, userInput);
             } catch (Exception backupEx) {
                 log.error("❌ [备用模型] 也已崩溃", backupEx);
-                // 终极兜底：返回无效，不污染数据库
                 EventParseResult fallback = new EventParseResult();
                 fallback.setValid(false);
                 return fallback;
