@@ -1,15 +1,19 @@
 package com.fly.forgotyet.service;
 
 import cn.hutool.core.date.LocalDateTimeUtil;
+import com.fly.forgotyet.common.JsonUtil;
 import com.fly.forgotyet.entity.Event;
 import com.fly.forgotyet.entity.EventParseResult;
+import com.fly.forgotyet.entity.TriggerPlan;
 import com.fly.forgotyet.repository.EventRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 @Slf4j
 @Service
@@ -19,6 +23,8 @@ public class EventService {
     private final LlmService llmService;
     private final EventRepository eventRepository;
     private final EventSchedulerService eventSchedulerService;
+    private final TriggerPlanService triggerPlanService;
+
 
     /**
      * 🚀 接收用户输入，保存为未来的事件 (异步处理)
@@ -28,32 +34,53 @@ public class EventService {
     public void createEvent(String rawInput, String userEmail) {
         log.info("🧵 [异步线程] 开始处理任务: {}", rawInput);
 
-        // 1. 先用 AI 解析 (现在是高可用的 LlmService)
         EventParseResult parseResult = llmService.parseInput(rawInput);
-
-        // 2. 如果 AI 觉得这根本不是人话 (valid=false)，直接拒绝
         if (!parseResult.isValid()) {
             log.warn("无效的输入，AI 拒绝处理: {}", rawInput);
             return;
         }
 
-        // 3. 构建事件实体
         Event event = new Event();
         event.setRawInput(rawInput);
         event.setUserEmail(userEmail);
         event.setStatus("SILENT");
         event.setCreateTime(LocalDateTime.now());
 
-        // 4. 时间计算魔法
-        LocalDateTime eventTime = LocalDateTimeUtil.parse(parseResult.getEventTime(), "yyyy-MM-dd HH:mm:ss");
+        // 1️⃣ 事实时间（无时区，来自用户语义）
+        LocalDateTime eventTime = LocalDateTimeUtil.parse(
+                parseResult.getEventTime(),
+                "yyyy-MM-dd HH:mm:ss"
+        );
         event.setEventTime(eventTime);
-        event.setTriggerTime(eventTime);
 
-        // 5. 落库
+        // 2️⃣ 明确时区边界（MVP：系统默认）
+        ZoneId zoneId = ZoneId.systemDefault();
+        Instant eventInstant = eventTime.atZone(zoneId).toInstant();
+
+        // 3️⃣ 策略层：只处理 Instant
+        TriggerPlan plan = triggerPlanService.plan(userEmail, parseResult, eventInstant);
+
+        // 4️⃣ 策略结果回到 LocalDateTime（用于 DB / Scheduler）
+        LocalDateTime triggerTime =
+                LocalDateTime.ofInstant(plan.getTriggerTime(), zoneId);
+        event.setTriggerTime(triggerTime);
+
+        // （可选）回放字段
+        event.setTriggerBucket(plan.getBucket() == null ? null : plan.getBucket().name());
+        event.setTriggerIntent(plan.getIntent() == null ? null : plan.getIntent().name());
+        event.setComplexity(plan.getComplexity() == null ? null : plan.getComplexity().name());
+        event.setPrepRequired(parseResult.isPrepRequired());
+        event.setDependenciesJson(
+                parseResult.getDependencies() == null ? null : JsonUtil.toJson(parseResult.getDependencies())
+        );
+        event.setTriggerReason(plan.getReason());
+
+        // 5️⃣ 落库
         eventRepository.save(event);
         log.info("新事件已存储: ID={}, 触发时间={}", event.getId(), event.getTriggerTime());
 
-        // 6. 精准挂载
+        // 6️⃣ 精准挂载
         eventSchedulerService.scheduleEvent(event);
     }
+
 }

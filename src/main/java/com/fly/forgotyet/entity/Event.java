@@ -41,4 +41,20 @@ public class Event {
     // 创建时间
     @CreatedDate
     private LocalDateTime createTime;
+
+    // 回放字段（便于后续偏好进化/统计）
+    private String triggerBucket;
+    private String triggerIntent;
+    private String complexity;
+
+    private Boolean prepRequired;
+
+    // 依赖项（JSON）
+    @Column(length = 2000)
+    private String dependenciesJson;
+
+    // 解释：为什么选这个 bucket（debug 用）
+    @Column(length = 2000)
+    private String triggerReason;
+
 }
