@@ -57,10 +57,15 @@ public class LlmService {
 
         // 🚀 4. 在原有的 Prompt 基础上，强行追加“严禁穿越”规则
         String systemPrompt = systemPromptTemplate.replace("{currentTime}", absoluteTimeContext)
-                + "\n\n【系统最高指令：当前时间是 " + absoluteTimeContext + "，你生成的 trigger_time 绝不能早于这个时间！如果是5分钟后，必须在这个时间基础上加5分钟！】";
+                + "\n\n【系统最高指令：当前北京时间是 " + absoluteTimeContext
+                + "。你输出的 eventTime 绝不能早于这个时间；如果用户说“5分钟后”，必须以这个时间为基准加5分钟得到 eventTime。"
+                + "并且必须输出 intent/complexity/prepRequired/dependencies/urgentMinuteLevel 字段，JSON 只允许包含这些字段。】";
+
 
         try {
-            return callParserApi(primaryBaseUrl, primaryApiKey, primaryModelName, systemPrompt, userInput);
+            EventParseResult result = callParserApi(primaryBaseUrl, primaryApiKey, primaryModelName, systemPrompt, userInput);
+            log.info("parseResult: {}", JSONUtil.toJsonStr(result));
+            return result;
         } catch (Exception e) {
             log.warn("⚠️ [主模型] 解析超时或崩溃，触发熔断，秒级切换至备用模型... 错误: {}", e.getMessage());
             try {
