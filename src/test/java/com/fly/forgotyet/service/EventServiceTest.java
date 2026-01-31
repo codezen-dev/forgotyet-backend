@@ -2,6 +2,7 @@ package com.fly.forgotyet.service;
 
 import com.fly.forgotyet.entity.*;
 import com.fly.forgotyet.enums.Complexity;
+import com.fly.forgotyet.enums.TriggerBucket;
 import com.fly.forgotyet.enums.TriggerIntent;
 import com.fly.forgotyet.repository.EventRepository;
 import org.junit.jupiter.api.Test;

@@ -1,6 +1,6 @@
 package com.fly.forgotyet.service;
 
-import com.fly.forgotyet.entity.TriggerBucket;
+import com.fly.forgotyet.enums.TriggerBucket;
 
 import java.time.Duration;
 

@@ -1,6 +1,8 @@
 package com.fly.forgotyet.repository;
 
 import com.fly.forgotyet.entity.Event;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -14,4 +16,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     List<Event> findByStatusAndTriggerTimeBefore(String status, LocalDateTime now);
 
     List<Event> findByStatusAndTriggerTimeAfter(String status, LocalDateTime now);
+
+    // V1：最近事件列表（按创建时间倒序）
+    Page<Event> findByUserEmailOrderByCreateTimeDesc(String userEmail, Pageable pageable);
 }

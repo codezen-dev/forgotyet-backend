@@ -5,15 +5,19 @@ import com.fly.forgotyet.common.JsonUtil;
 import com.fly.forgotyet.entity.Event;
 import com.fly.forgotyet.entity.EventParseResult;
 import com.fly.forgotyet.entity.TriggerPlan;
+import com.fly.forgotyet.enums.TriggerFeedback;
 import com.fly.forgotyet.repository.EventRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -81,6 +85,34 @@ public class EventService {
 
         // 6️⃣ 精准挂载
         eventSchedulerService.scheduleEvent(event);
+    }
+
+    /**
+     * V1：最近事件列表
+     */
+    public List<Event> listRecentEvents(String userEmail, int limit) {
+        int size = Math.max(1, Math.min(limit, 50)); // 防滥用：1~50
+        return eventRepository
+                .findByUserEmailOrderByCreateTimeDesc(
+                        userEmail,
+                        PageRequest.of(0, size, Sort.by(Sort.Direction.DESC, "createTime"))
+                )
+                .getContent();
+    }
+
+    /**
+     * V1：提交反馈（早/好/晚）
+     */
+    public void submitFeedback(String userEmail, Long eventId, TriggerFeedback feedback) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new RuntimeException("事件不存在"));
+
+        if (!userEmail.equals(event.getUserEmail())) {
+            throw new RuntimeException("无权限操作该事件");
+        }
+
+        event.setFeedback(feedback);
+        eventRepository.save(event);
     }
 
 }

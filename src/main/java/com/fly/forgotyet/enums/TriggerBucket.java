@@ -1,4 +1,4 @@
-package com.fly.forgotyet.entity;
+package com.fly.forgotyet.enums;
 
 public enum TriggerBucket {
     M0,   // 0m

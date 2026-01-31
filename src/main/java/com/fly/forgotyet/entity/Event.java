@@ -1,5 +1,6 @@
 package com.fly.forgotyet.entity;
 
+import com.fly.forgotyet.enums.TriggerFeedback;
 import lombok.Data;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
@@ -56,5 +57,9 @@ public class Event {
     // 解释：为什么选这个 bucket（debug 用）
     @Column(length = 2000)
     private String triggerReason;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 16)
+    private TriggerFeedback feedback;
 
 }
