@@ -4,7 +4,10 @@ import com.fly.forgotyet.entity.*;
 import com.fly.forgotyet.enums.Complexity;
 import com.fly.forgotyet.enums.TriggerBucket;
 import com.fly.forgotyet.enums.TriggerIntent;
+import com.fly.forgotyet.repository.EventRepository;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -12,7 +15,9 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
+@ExtendWith(MockitoExtension.class)
 class TriggerPlanServiceTest {
 
     // 固定当前时间：2026-01-27 20:00:00 UTC（你只要保证固定即可，和本地时区无关，因为策略层用 Instant）
@@ -20,7 +25,8 @@ class TriggerPlanServiceTest {
     private final Clock FIXED_CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
 
     private TriggerPlanService newService() {
-        return new TriggerPlanService(FIXED_CLOCK);
+        UserBiasService userBiasService = mock(UserBiasService.class);
+        return new TriggerPlanService(FIXED_CLOCK,userBiasService);
     }
 
     private static EventParseResult baseParseResult() {

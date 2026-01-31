@@ -110,6 +110,7 @@ public class EventController {
         private LocalDateTime triggerTime;
         private String status;
         private TriggerFeedback feedback;
+        private String triggerReason;
 
         public static EventListItem from(Event e) {
             EventListItem i = new EventListItem();
@@ -119,6 +120,7 @@ public class EventController {
             i.setTriggerTime(e.getTriggerTime());
             i.setStatus(e.getStatus());
             i.setFeedback(e.getFeedback());
+            i.setTriggerReason(e.getTriggerReason());
             return i;
         }
     }

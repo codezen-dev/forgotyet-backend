@@ -5,6 +5,7 @@ import com.fly.forgotyet.entity.*;
 import com.fly.forgotyet.enums.Complexity;
 import com.fly.forgotyet.enums.TriggerBucket;
 import com.fly.forgotyet.enums.TriggerIntent;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
@@ -13,13 +14,17 @@ import java.time.Instant;
 import java.util.List;
 
 @Service
+@Slf4j
 public class TriggerPlanService {
 
     private final Clock clock;
+    private final UserBiasService userBiasService;
 
-    public TriggerPlanService(Clock clock) {
+    public TriggerPlanService(Clock clock, UserBiasService userBiasService) {
         this.clock = clock;
+        this.userBiasService = userBiasService;
     }
+
 
     /**
      * @param userId  先留着，未来接 UserPreference 用
@@ -59,9 +64,10 @@ public class TriggerPlanService {
             bucket = earlier(bucket);
         }
 
-        // 5) 偏好进化：先预留 bias，MVP 固定 0
-        int bias = 0; // TODO: UserPreference.global_bias / type_bias
-        bucket = shift(bucket, bias);
+        // 5) 偏好进化
+        int biasSteps = userBiasService.computeBiasSteps(userId);
+        bucket = shift(bucket, biasSteps);
+
 
         // 6) 计算 triggerTime，并约束/fallback
         Instant trigger = safeTriggerTime(now, eventTime, bucket, plan);
@@ -72,9 +78,9 @@ public class TriggerPlanService {
                 + ", complexity=" + plan.getComplexity()
                 + ", prepRequired=" + r.isPrepRequired()
                 + ", deps=" + (r.getDependencies() == null ? 0 : r.getDependencies().size())
-                + ", bias=" + bias
+                + ", biasSteps=" + biasSteps
                 + ", finalBucket=" + bucket);
-
+        log.info("[bias] user=" + userId + " biasSteps=" + biasSteps + " bucket=" + bucket);
         return plan;
     }
 
@@ -136,15 +142,20 @@ public class TriggerPlanService {
         };
     }
 
-    private TriggerBucket shift(TriggerBucket b, int bias) {
+    private TriggerBucket shift(TriggerBucket b, int biasSteps) {
         TriggerBucket cur = b;
-        if (bias > 0) {
-            for (int i = 0; i < bias; i++) cur = earlier(cur);
-        } else if (bias < 0) {
-            for (int i = 0; i < -bias; i++) cur = later(cur);
+
+        // 正值：更晚（减少提前量）
+        if (biasSteps > 0) {
+            for (int i = 0; i < biasSteps; i++) cur = later(cur);
+        }
+        // 负值：更早（增加提前量）
+        else if (biasSteps < 0) {
+            for (int i = 0; i < -biasSteps; i++) cur = earlier(cur);
         }
         return cur;
     }
+
 
     /**
      * 核心约束：

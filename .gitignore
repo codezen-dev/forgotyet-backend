@@ -37,3 +37,5 @@ src/main/resources/application-dev.yml
 .DS_Store
 data/forgotyet.mv.db
 .DS_Store
+.DS_Store
+/data

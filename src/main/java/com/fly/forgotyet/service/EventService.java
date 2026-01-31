@@ -113,6 +113,7 @@ public class EventService {
 
         event.setFeedback(feedback);
         eventRepository.save(event);
+        log.info("🧠 feedback recorded: user={}, eventId={}, feedback={}", userEmail, eventId, feedback);
     }
 
 }

@@ -19,4 +19,6 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
     // V1：最近事件列表（按创建时间倒序）
     Page<Event> findByUserEmailOrderByCreateTimeDesc(String userEmail, Pageable pageable);
+
+    Page<Event> findByUserEmailAndStatusOrderByCreateTimeDesc(String userEmail, String status, Pageable pageable);
 }
