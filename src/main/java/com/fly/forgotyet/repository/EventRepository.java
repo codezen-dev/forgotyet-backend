@@ -21,4 +21,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     Page<Event> findByUserEmailOrderByCreateTimeDesc(String userEmail, Pageable pageable);
 
     Page<Event> findByUserEmailAndStatusOrderByCreateTimeDesc(String userEmail, String status, Pageable pageable);
+
+    List<Event> findTop12ByUserEmailAndStatusOrderByTriggerTimeDesc(String userEmail, String status);
+
 }

@@ -28,7 +28,17 @@ class EventServiceTest {
         EventSchedulerService schedulerService = mock(EventSchedulerService.class);
         TriggerPlanService triggerPlanService = mock(TriggerPlanService.class);
 
-        EventService eventService = new EventService(llmService, eventRepository, schedulerService, triggerPlanService);
+        // ✅ fixed clock for deterministic behavior
+        ZoneId zoneId = ZoneId.systemDefault();
+        Clock clock = Clock.fixed(
+                LocalDateTime.of(2026, 1, 27, 10, 0, 0).atZone(zoneId).toInstant(),
+                zoneId
+        );
+
+        // ✅ constructor with clock
+        EventService eventService = new EventService(
+                llmService, eventRepository, schedulerService, triggerPlanService, clock
+        );
 
         String rawInput = "今晚9点提醒我开会";
         String userEmail = "a@b.com";
@@ -37,7 +47,8 @@ class EventServiceTest {
         EventParseResult parseResult = new EventParseResult();
         parseResult.setValid(true);
         parseResult.setSummary("提醒我开会");
-        parseResult.setEventTime("2026-01-27 21:00:00");
+        // 建议用 T 格式，除非你已做宽松解析
+        parseResult.setEventTime("2026-01-27T21:00:00");
         parseResult.setIntent(TriggerIntent.AT_TIME);
         parseResult.setComplexity(Complexity.MEDIUM);
         parseResult.setPrepRequired(false);
@@ -47,7 +58,6 @@ class EventServiceTest {
         when(llmService.parseInput(eq(rawInput))).thenReturn(parseResult);
 
         // Trigger plan（策略层用 Instant）
-        ZoneId zoneId = ZoneId.systemDefault();
         LocalDateTime eventLdt = LocalDateTime.of(2026, 1, 27, 21, 0, 0);
         Instant eventInstant = eventLdt.atZone(zoneId).toInstant();
 
@@ -77,7 +87,7 @@ class EventServiceTest {
         assertEquals(userEmail, saved.getUserEmail());
         assertEquals("SILENT", saved.getStatus());
 
-        // eventTime 写入正确（来自 parseResult）
+        // eventTime 写入正确（来自 parseResult/normalizer）
         assertEquals(eventLdt, saved.getEventTime());
 
         // triggerTime 写入正确（来自 plan.triggerTime 转 LocalDateTime）
@@ -89,25 +99,32 @@ class EventServiceTest {
         assertEquals("AT_TIME", saved.getTriggerIntent());
         assertEquals("MEDIUM", saved.getComplexity());
         assertEquals(Boolean.FALSE, saved.getPrepRequired());
-        assertNotNull(saved.getDependenciesJson()); // [] 也会是一个 JSON 字符串
+        assertNotNull(saved.getDependenciesJson());
         assertEquals("test-reason", saved.getTriggerReason());
 
         // scheduler 被调用
         verify(schedulerService, times(1)).scheduleEvent(any(Event.class));
 
-        // TriggerPlanService 被调用（最关键：eventInstant 入参类型正确）
+        // TriggerPlanService 被调用
         verify(triggerPlanService, times(1)).plan(eq(userEmail), any(EventParseResult.class), any(Instant.class));
     }
 
     @Test
     void createEvent_shouldReturnDirectly_whenInvalid() {
-        // mocks
         EventRepository eventRepository = mock(EventRepository.class);
         LlmService llmService = mock(LlmService.class);
         EventSchedulerService schedulerService = mock(EventSchedulerService.class);
         TriggerPlanService triggerPlanService = mock(TriggerPlanService.class);
 
-        EventService eventService = new EventService(llmService, eventRepository, schedulerService, triggerPlanService);
+        ZoneId zoneId = ZoneId.systemDefault();
+        Clock clock = Clock.fixed(
+                LocalDateTime.of(2026, 1, 27, 10, 0, 0).atZone(zoneId).toInstant(),
+                zoneId
+        );
+
+        EventService eventService = new EventService(
+                llmService, eventRepository, schedulerService, triggerPlanService, clock
+        );
 
         String rawInput = "这不是提醒";
         String userEmail = "a@b.com";
@@ -117,12 +134,11 @@ class EventServiceTest {
 
         when(llmService.parseInput(eq(rawInput))).thenReturn(parseResult);
 
-        // when
         eventService.createEvent(rawInput, userEmail);
 
-        // then: 不落库、不调度、不算 trigger
         verify(eventRepository, never()).save(any());
         verify(schedulerService, never()).scheduleEvent(any());
         verify(triggerPlanService, never()).plan(anyString(), any(), any());
     }
 }
+

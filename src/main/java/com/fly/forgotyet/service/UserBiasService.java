@@ -17,9 +17,8 @@ public class UserBiasService {
     private final EventRepository eventRepository;
 
     /**
-     * 计算用户偏好偏移（以 bucket 档位为单位）
-     * 正值：整体更晚（减少提前量）
-     * 负值：整体更早（增加提前量）
+     * C3-2: 分钟级 bucket (M0/M15...) 不参与学习
+     * 返回偏好步数：+1 / 0 / -1（你也可以保持你原来的阈值策略）
      */
     public int computeBiasSteps(String userEmail) {
         // 只看最近 N 条已送达事件
@@ -33,11 +32,23 @@ public class UserBiasService {
                 )
                 .getContent();
 
+        if (events == null || events.isEmpty()) return 0;
+
+        // ✅ C3-2：过滤分钟级 bucket：任何以 "M" 开头的都不参与学习（M0/M15）
+        List<Event> filtered = events.stream()
+                .filter(e -> {
+                    String b = e.getTriggerBucket();
+                    return b == null || b.isBlank() || !b.startsWith("M");
+                })
+                .toList();
+
+        if (filtered.isEmpty()) return 0;
+
         int early = 0;
         int late = 0;
 
-        for (Event e : events) {
-            TriggerFeedback f = e.getFeedback();
+        for (Event e : filtered) {
+            TriggerFeedback f = e.getFeedback(); // ✅ 枚举
             if (f == null) continue;
             if (f == TriggerFeedback.EARLY) early++;
             else if (f == TriggerFeedback.LATE) late++;
@@ -55,4 +66,5 @@ public class UserBiasService {
 
         return steps;
     }
+
 }
