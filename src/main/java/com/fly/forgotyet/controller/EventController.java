@@ -71,6 +71,15 @@ public class EventController {
         return R.success("ok");
     }
 
+    @PostMapping("/{id}/cancel")
+    public R<String> cancel(@PathVariable("id") Long id,
+                            HttpServletRequest httpRequest) {
+        String email = extractEmailFromToken(httpRequest);
+        eventService.cancelEvent(id, email);
+        return R.success("已取消");
+    }
+
+
     // 解析 Token 的辅助方法
     private String extractEmailFromToken(HttpServletRequest request) {
         String authHeader = request.getHeader("Authorization");

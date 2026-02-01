@@ -14,6 +14,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 
 import java.time.Clock;
 import java.time.Instant;
@@ -21,6 +23,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
+
 
 @Slf4j
 @Service
@@ -131,5 +134,27 @@ public class EventService {
         eventRepository.save(event);
         log.info("🧠 feedback recorded: user={}, eventId={}, feedback={}", userEmail, eventId, feedback);
     }
+
+    @Transactional
+    public void cancelEvent(Long eventId, String userEmail) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new RuntimeException("事件不存在"));
+
+        if (!userEmail.equals(event.getUserEmail())) {
+            throw new RuntimeException("无权限取消该事件");
+        }
+
+        // 幂等：重复取消不报错
+        if ("CANCELED".equalsIgnoreCase(event.getStatus())) {
+            return;
+        }
+
+        event.setStatus("CANCELED");
+        eventRepository.save(event);
+
+        // 尝试取消内存任务（成功最好，失败也没关系：执行前会查 DB 状态兜底）
+        eventSchedulerService.cancelScheduled(eventId);
+    }
+
 
 }

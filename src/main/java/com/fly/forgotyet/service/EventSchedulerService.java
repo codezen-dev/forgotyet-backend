@@ -25,6 +25,9 @@ public class EventSchedulerService {
     private final EventRepository eventRepository;
     private final LlmService llmService;     // 注入你现有的 LLM 服务
     private final EmailService emailService; // 注入你现有的邮件服务
+    private static final String STATUS_SILENT = "SILENT";
+    private static final String STATUS_DELIVERED = "DELIVERED";
+    private static final String STATUS_CANCELED = "CANCELED";
 
     // 用于管理内存中的任务，防止重复或取消
     private final Map<Long, ScheduledFuture<?>> scheduledTasks = new ConcurrentHashMap<>();
@@ -66,25 +69,34 @@ public class EventSchedulerService {
         }
 
         ScheduledFuture<?> future = taskScheduler.schedule(() -> {
-            log.info("⏰ 【ForgotYet 触发】任务 ID [{}]: {}", event.getId(), event.getRawInput());
+
+            // ✅ 兜底：执行前再查一次 DB（保证取消后绝不误发）
+            Event latest = eventRepository.findById(event.getId()).orElse(null);
+            if (latest == null) {
+                scheduledTasks.remove(event.getId());
+                return;
+            }
+
+            if (STATUS_CANCELED.equalsIgnoreCase(latest.getStatus())) {
+                log.info("⛔ 事件已取消，跳过触发 ID={}", event.getId());
+                scheduledTasks.remove(event.getId());
+                return;
+            }
+
+            log.info("⏰ 【ForgotYet 触发】任务 ID [{}]: {}", latest.getId(), latest.getRawInput());
 
             try {
-                // 1. 调用你原有的 AI 生成安抚文案逻辑
-                String content = llmService.generateEmailContent(event.getRawInput());
-
-                // 2. 调用你原有的邮件发送逻辑
+                String content = llmService.generateEmailContent(latest.getRawInput());
                 String subject = "关于你之前提到的那件事...";
-                emailService.sendSimpleEmail(event.getUserEmail(), subject, content);
+                emailService.sendSimpleEmail(latest.getUserEmail(), subject, content);
 
-                // 3. 状态流转并落库
-                event.setStatus("DELIVERED");
-                eventRepository.save(event);
+                latest.setStatus(STATUS_DELIVERED);
+                eventRepository.save(latest);
 
             } catch (Exception e) {
-                log.error("❌ 事件处理失败 ID=" + event.getId(), e);
+                log.error("❌ 事件处理失败 ID=" + latest.getId(), e);
             } finally {
-                // 4. 清理内存
-                scheduledTasks.remove(event.getId());
+                scheduledTasks.remove(latest.getId());
             }
 
         }, targetInstant);
@@ -92,4 +104,15 @@ public class EventSchedulerService {
         scheduledTasks.put(event.getId(), future);
         log.debug("📌 任务 [ID:{}] 已精准挂载，将在 {} 触发", event.getId(), event.getTriggerTime());
     }
+
+    public boolean cancelScheduled(Long eventId) {
+        ScheduledFuture<?> future = scheduledTasks.remove(eventId);
+        if (future != null) {
+            boolean canceled = future.cancel(false);
+            log.info("🛑 尝试取消内存任务 ID={}, result={}", eventId, canceled);
+            return canceled;
+        }
+        return false;
+    }
+
 }
