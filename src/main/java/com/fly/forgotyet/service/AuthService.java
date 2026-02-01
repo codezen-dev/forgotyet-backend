@@ -3,7 +3,6 @@ package com.fly.forgotyet.service;
 import cn.hutool.cache.CacheUtil;
 import cn.hutool.cache.impl.TimedCache;
 import cn.hutool.core.util.RandomUtil;
-import com.fly.forgotyet.common.R;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +23,7 @@ public class AuthService {
     private static final String SECRET_STR = "ForgotYet2026SuperSecretKeyForJWTAuth!!";
     private static final SecretKey KEY = Keys.hmacShaKeyFor(SECRET_STR.getBytes());
 
-    // 内存缓存：存放验证码，5分钟过期 (零运维方案)
+    // 内存缓存：存放邮箱验证码，5分钟过期 (零运维方案)
     private static final TimedCache<String, String> codeCache = CacheUtil.newTimedCache(5 * 60 * 1000);
 
     /**
@@ -40,21 +39,36 @@ public class AuthService {
     }
 
     /**
-     * 校验并签发 Token
+     * 邮箱验证码登录：subject=email
      */
     public String login(String email, String code) {
         String cachedCode = codeCache.get(email);
         if (cachedCode == null || !cachedCode.equals(code)) {
             throw new RuntimeException("验证码错误或已过期");
         }
-
-        // 验证通过，清理缓存，签发 30 天的 JWT
         codeCache.remove(email);
-        return Jwts.builder()
-                .subject(email)
+        return issueJwt(email, email);
+    }
+
+    /**
+     * 统一签 JWT
+     * - subject: email 登录时就是 email；短信登录时可以是 phone
+     * - email: 一定尽量带上，便于 EventController 拿到 email 做提醒
+     */
+    public String issueJwt(String subject, String email) {
+        var builder = Jwts.builder()
+                .subject(subject)
                 .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + 1000L * 60 * 60 * 24 * 30)) // 30天免登录
-                .signWith(KEY)
-                .compact();
+                .expiration(new Date(System.currentTimeMillis() + 1000L * 60 * 60 * 24 * 30))
+                .signWith(KEY);
+
+        if (email != null && !email.isBlank()) {
+            builder.claim("email", email);
+        }
+        return builder.compact();
+    }
+
+    public static SecretKey jwtKey() {
+        return KEY;
     }
 }

@@ -58,3 +58,15 @@ voice:
   # 🚀 可以用 whisper，也可以用阿里开源的最强中文语音模型 SenseVoice
   model: FunAudioLLM/SenseVoiceSmall
   # (或者填 model: openai/whisper-large-v3)
+aliyun:
+  pnvs:
+    accessKeyId: ${ALIYUN_PNVS_AK}
+    accessKeySecret: ${ALIYUN_PNVS_SK}
+    endpoint: dypnsapi.aliyuncs.com
+    regionId: cn-hangzhou
+    templateCode: 100001
+    # schemeName 可空；但“发送/校验”要一致
+    schemeName:
+    countryCode: 86
+    templateMin: 5
+

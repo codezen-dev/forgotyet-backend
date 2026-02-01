@@ -86,7 +86,7 @@ public class EventController {
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             throw new RuntimeException("未登录或 Token 失效");
         }
-        String token = authHeader.substring(7); // 去掉 "Bearer "
+        String token = authHeader.substring(7);
 
         try {
             Claims claims = Jwts.parser()
@@ -94,11 +94,18 @@ public class EventController {
                     .build()
                     .parseSignedClaims(token)
                     .getPayload();
+
+            // ✅ 兼容短信登录：优先用 claim.email；没有再退回 subject
+            Object email = claims.get("email");
+            if (email != null && !String.valueOf(email).isBlank()) {
+                return String.valueOf(email);
+            }
             return claims.getSubject();
         } catch (Exception e) {
             throw new RuntimeException("Token 解析失败，请重新登录");
         }
     }
+
 
     @Data
     public static class EventRequest {

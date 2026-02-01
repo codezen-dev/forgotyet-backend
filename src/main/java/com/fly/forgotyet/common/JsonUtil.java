@@ -41,4 +41,5 @@ public class JsonUtil {
             throw new RuntimeException("JSON 序列化异常");
         }
     }
+
 }
