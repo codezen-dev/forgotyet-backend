@@ -128,6 +128,12 @@ public class EventController {
         private TriggerFeedback feedback;
         private String triggerReason;
 
+        // ✅ 新增：验证 triggerTime 用
+        private String triggerBucket;
+        private String triggerIntent;
+        private String complexity;
+        private Boolean prepRequired;
+
         public static EventListItem from(Event e) {
             EventListItem i = new EventListItem();
             i.setId(e.getId());
@@ -137,7 +143,15 @@ public class EventController {
             i.setStatus(e.getStatus());
             i.setFeedback(e.getFeedback());
             i.setTriggerReason(e.getTriggerReason());
+
+            // ✅ 新增字段映射
+            i.setTriggerBucket(e.getTriggerBucket());
+            i.setTriggerIntent(e.getTriggerIntent());
+            i.setComplexity(e.getComplexity());
+            i.setPrepRequired(e.getPrepRequired());
+
             return i;
         }
     }
+
 }

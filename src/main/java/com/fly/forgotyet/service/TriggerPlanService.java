@@ -39,24 +39,20 @@ public class TriggerPlanService {
         plan.setIntent(defaultIntent(r.getIntent()));
         plan.setComplexity(defaultComplexity(r.getComplexity()));
 
-        // 1) 强规则：分钟/马上/立刻/立即/过X分钟 -> bucket = M0
+        Duration horizon = Duration.between(now, eventTime);
         if (r.isUrgentMinuteLevel()) {
-            TriggerBucket bucket = TriggerBucket.M0;
+            TriggerBucket bucket = chooseAtTimeBucket(horizon); // ✅ 核心修复点
             Instant trigger = safeTriggerTime(now, eventTime, bucket, plan);
             plan.setBucket(bucket);
             plan.setTriggerTime(trigger);
-            plan.setForcedImmediate(true);
-            plan.setReason("forced urgentMinuteLevel => bucket=M0");
+            plan.setForcedImmediate(true); // 字段名不改，语义是“分钟级强规则”
+            plan.setReason("forced urgentMinuteLevel => bucket=" + bucket + ", horizon=" + horizon.toMinutes() + "m");
             return plan;
         }
 
-        // 2) 初始 bucket（按 intent + complexity）
-        TriggerBucket bucket = chooseBaseBucket(plan.getIntent(), plan.getComplexity());
+        TriggerBucket bucket = chooseBaseBucket(plan.getIntent(), plan.getComplexity(), horizon);
 
-        // 3) 默认策略：偏早一档（保守兜底）
-        bucket = earlier(bucket);
 
-        // 4) 若需要准备/有依赖，再偏早
         if (r.isPrepRequired()) {
             bucket = earlier(bucket);
         }
@@ -96,51 +92,41 @@ public class TriggerPlanService {
         return deps != null && !deps.isEmpty();
     }
 
-    private TriggerBucket chooseBaseBucket(TriggerIntent intent, Complexity c) {
-        return switch (intent) {
-            case AT_TIME -> TriggerBucket.M0;
-            case CUSHION -> switch (c) {
-                case LOW -> TriggerBucket.H1;
-                case MEDIUM -> TriggerBucket.H4;
-                case HIGH -> TriggerBucket.D1;
-            };
-            case PREPARE -> switch (c) {
-                case LOW -> TriggerBucket.H4;
-                case MEDIUM -> TriggerBucket.D1;
-                case HIGH -> TriggerBucket.D3;
-            };
-        };
-    }
+    private static final TriggerBucket[] ORDER = new TriggerBucket[] {
+            TriggerBucket.M0,
+            TriggerBucket.M1,
+            TriggerBucket.M5,
+            TriggerBucket.M10,
+            TriggerBucket.M15,
+            TriggerBucket.M30,
+            TriggerBucket.H1,
+            TriggerBucket.H2,
+            TriggerBucket.H4,
+            TriggerBucket.H8,
+            TriggerBucket.D1,
+            TriggerBucket.D3,
+            TriggerBucket.D7,
+            TriggerBucket.D14,
+            TriggerBucket.D30
+    };
 
-    /**
-     * 偏早一档（更早触发）：
-     * M0 -> M15 -> H1 -> H4 -> D1 -> D3
-     */
     private TriggerBucket earlier(TriggerBucket b) {
-        return switch (b) {
-            case M0 -> TriggerBucket.M15;
-            case M15 -> TriggerBucket.H1;
-            case H1 -> TriggerBucket.H4;
-            case H4 -> TriggerBucket.D1;
-            case D1 -> TriggerBucket.D3;
-            case D3 -> TriggerBucket.D3;
-        };
+        int idx = indexOf(b);
+        return ORDER[Math.min(ORDER.length - 1, idx + 1)];
     }
 
-    /**
-     * 偏晚一档（更晚触发）：
-     * D3 -> D1 -> H4 -> H1 -> M15 -> M0
-     */
     private TriggerBucket later(TriggerBucket b) {
-        return switch (b) {
-            case M0 -> TriggerBucket.M0;
-            case M15 -> TriggerBucket.M0;
-            case H1 -> TriggerBucket.M15;
-            case H4 -> TriggerBucket.H1;
-            case D1 -> TriggerBucket.H4;
-            case D3 -> TriggerBucket.D1;
-        };
+        int idx = indexOf(b);
+        return ORDER[Math.max(0, idx - 1)];
     }
+
+    private int indexOf(TriggerBucket b) {
+        for (int i = 0; i < ORDER.length; i++) {
+            if (ORDER[i] == b) return i;
+        }
+        return 0;
+    }
+
 
     private TriggerBucket shift(TriggerBucket b, int biasSteps) {
         TriggerBucket cur = b;
@@ -166,16 +152,81 @@ public class TriggerPlanService {
         Duration lead = TriggerBucketUtil.toDuration(bucket);
         Instant trigger = eventTime.minus(lead);
 
-        // 必须 < eventTime：如果触发时间不在 eventTime 前面，则往前挪 1ms
+        // 如果 eventTime 本身就在过去（LLM/兜底导致），那就立即触发（给 scheduler 一个最近未来时间）
+        if (!eventTime.isAfter(now)) {
+            plan.setFallbackNowPlus1m(true);
+            plan.setReason("eventTime_in_past => schedule_now+5s");
+            return now.plusSeconds(5);
+        }
+
+        // 正常情况：必须 < eventTime
         if (!trigger.isBefore(eventTime)) {
             trigger = eventTime.minusMillis(1);
         }
 
-        // 如果算出来在过去/现在 -> fallback now + 1min
+        // 如果 trigger 已经过了（<=now），给一个“尽快但仍早于eventTime”的时间
         if (!trigger.isAfter(now)) {
             plan.setFallbackNowPlus1m(true);
-            return now.plus(Duration.ofMinutes(1));
+
+            // 尽快触发时间：now+5s
+            Instant soon = now.plusSeconds(5);
+
+            // 但必须早于 eventTime：最多 eventTime-1s
+            Instant latestBeforeEvent = eventTime.minusSeconds(1);
+
+            // 取两者较小：既尽快，又不越过 eventTime
+            if (soon.isBefore(latestBeforeEvent)) {
+                return soon;
+            }
+            // 如果 eventTime 距离太近（<6秒），那就直接 eventTime-1s
+            return latestBeforeEvent;
         }
+
         return trigger;
     }
+    private TriggerBucket chooseAtTimeBucket(Duration horizon) {
+        // horizon: eventTime - now（肯定是正数才会进来）
+        if (horizon.compareTo(Duration.ofMinutes(1)) <= 0) return TriggerBucket.M0;
+        if (horizon.compareTo(Duration.ofMinutes(5)) <= 0) return TriggerBucket.M1;
+        if (horizon.compareTo(Duration.ofMinutes(10)) <= 0) return TriggerBucket.M5;
+        if (horizon.compareTo(Duration.ofMinutes(30)) <= 0) return TriggerBucket.M10;
+        if (horizon.compareTo(Duration.ofHours(2)) <= 0) return TriggerBucket.M15;
+        if (horizon.compareTo(Duration.ofHours(8)) <= 0) return TriggerBucket.M30;
+        return TriggerBucket.H1;
+    }
+
+
+    private TriggerBucket chooseBaseBucket(TriggerIntent intent, Complexity c, Duration horizon) {
+        // intent=AT_TIME：尽量贴近事件
+        if (intent == TriggerIntent.AT_TIME) {
+            if (horizon.compareTo(Duration.ofMinutes(2)) <= 0) return TriggerBucket.M0;
+            if (horizon.compareTo(Duration.ofMinutes(10)) <= 0) return TriggerBucket.M1;
+            if (horizon.compareTo(Duration.ofMinutes(30)) <= 0) return TriggerBucket.M5;
+            if (horizon.compareTo(Duration.ofHours(2)) <= 0) return TriggerBucket.M15;
+            if (horizon.compareTo(Duration.ofHours(8)) <= 0) return TriggerBucket.M30;
+            return TriggerBucket.H1;
+        }
+
+        // 非 AT_TIME：先按 horizon 分段，再按复杂度微调
+        // 你可以理解为：越远的事，越需要“至少提前几天/几周”来兜底准备
+        TriggerBucket base;
+        if (horizon.compareTo(Duration.ofMinutes(30)) <= 0) base = TriggerBucket.M5;
+        else if (horizon.compareTo(Duration.ofHours(2)) <= 0) base = TriggerBucket.M15;
+        else if (horizon.compareTo(Duration.ofHours(8)) <= 0) base = TriggerBucket.H1;
+        else if (horizon.compareTo(Duration.ofDays(1)) <= 0) base = TriggerBucket.H4;
+        else if (horizon.compareTo(Duration.ofDays(3)) <= 0) base = TriggerBucket.D1;
+        else if (horizon.compareTo(Duration.ofDays(14)) <= 0) base = TriggerBucket.D3;
+        else if (horizon.compareTo(Duration.ofDays(45)) <= 0) base = TriggerBucket.D7;
+        else base = TriggerBucket.D14;
+
+        // intent=PREPARE：整体更早一档
+        if (intent == TriggerIntent.PREPARE) base = earlier(base);
+
+        // complexity 越高，再更早
+        if (c == Complexity.HIGH) base = earlier(base);
+        else if (c == Complexity.LOW) base = later(base);
+
+        return base;
+    }
+
 }
