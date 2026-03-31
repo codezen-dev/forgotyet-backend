@@ -24,11 +24,9 @@ public class Event {
     private String rawInput;
 
     // 事件发生的实际时间 (LLM 解析出来的)
-    @Column(nullable = false)
     private LocalDateTime eventTime;
 
     // 触发通知的时间 (计算出来的，通常是 eventTime - 24h)
-    @Column(nullable = false)
     private LocalDateTime triggerTime;
 
     // 状态: SILENT (默认), DELIVERED (已发送), CANCELLED (取消)

@@ -79,6 +79,17 @@ public class EventController {
         return R.success("已取消");
     }
 
+    @PostMapping("/resolve-pending")
+    public R<String> resolvePending(@RequestBody EventRequest request, HttpServletRequest httpRequest) {
+        if (request.getContent() == null || request.getContent().trim().isEmpty()) {
+            return R.error("内容不能为空");
+        }
+        String email = extractEmailFromToken(httpRequest);
+        String msg = eventService.resolvePending(request.getContent(), email);
+        return R.success(msg);
+    }
+
+
 
     // 解析 Token 的辅助方法
     private String extractEmailFromToken(HttpServletRequest request) {

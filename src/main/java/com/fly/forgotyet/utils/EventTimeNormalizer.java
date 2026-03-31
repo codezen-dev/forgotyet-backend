@@ -15,6 +15,31 @@ public class EventTimeNormalizer {
     private static final LocalTime T_15 = LocalTime.of(15, 0);
     private static final LocalTime T_20 = LocalTime.of(20, 0);
 
+    private static final java.util.regex.Pattern P_TIME_HM =
+            java.util.regex.Pattern.compile("\\b\\d{1,2}[:：]\\d{2}\\b");
+    private static final java.util.regex.Pattern P_WEEKDAY =
+            java.util.regex.Pattern.compile("(周|星期)[一二三四五六日天]");
+    private static final java.util.regex.Pattern P_RELATIVE_NUM =
+            java.util.regex.Pattern.compile("\\d+\\s*(分钟|分|min|minute|小时|h|hour|天|日|周|星期|月)");
+
+    private static boolean hasTemporalHint(String raw) {
+        if (raw == null) return false;
+
+        // 显式日期/时间/周期词
+        if (containsAny(raw,
+                "今天","今日","明天","明日","后天","大后天","下周","下星期","下个月","下月",
+                "上午","早上","清晨","中午","下午","晚上","夜里","夜晚",
+                "几点","点钟","号","日","星期","周",
+                "等一下","等会","等一会","稍后","一会","一会儿",
+                "分钟","小时","天","周","月","min","minute","hour","h"
+        )) return true;
+
+        if (P_TIME_HM.matcher(raw).find()) return true;   // 14:30
+        if (P_WEEKDAY.matcher(raw).find()) return true;   // 周一/星期一
+        return P_RELATIVE_NUM.matcher(raw).find();        // 10分钟/2小时/3天...
+    }
+
+
     /**
      * C3-1: 模糊时间兜底
      * - LLM 有精确 eventTime：直接用（assumed=false）
@@ -44,6 +69,11 @@ public class EventTimeNormalizer {
             // 没原文：保守兜底
             return Result.of(now.plusMinutes(10), true, "fuzzy_assumed:missing_raw|soon_now+10m");
         }
+        // ✅ 若完全没有任何时间/日期线索：不要强行兜底到今天 09:00，进入“接住但不调度”的 PENDING 状态
+        if (!hasTemporalHint(raw)) {
+            return Result.of(null, true, "fuzzy_pending:no_time_hint");
+        }
+
 
         boolean hasToday = containsAny(raw, "今天", "今日");
         boolean hasTomorrow = containsAny(raw, "明天", "明日");

@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface EventRepository extends JpaRepository<Event, Long> {
@@ -32,6 +33,8 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     int updateStatusByIdAndUserEmail(@Param("id") Long id,
                                      @Param("userEmail") String userEmail,
                                      @Param("status") String status);
+    Optional<Event> findTop1ByUserEmailAndStatusOrderByCreateTimeDesc(String userEmail, String status);
+
 
 
 }

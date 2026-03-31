@@ -60,6 +60,16 @@ public class EventSchedulerService {
      * 🚀 2. 核心调度：将任务精准挂载到内存时钟
      */
     public void scheduleEvent(Event event) {
+
+        if (event.getTriggerTime() == null) {
+            log.warn("skip schedule: triggerTime is null, id={}", event.getId());
+            return;
+        }
+        if (!"SILENT".equalsIgnoreCase(event.getStatus())) {
+            // 只调度 SILENT，其他状态（PENDING/DELIVERED/CANCELED）跳过
+            return;
+        }
+
         // 转换 triggerTime 为底层时间戳
         Instant targetInstant = event.getTriggerTime().atZone(ZoneId.systemDefault()).toInstant();
 
